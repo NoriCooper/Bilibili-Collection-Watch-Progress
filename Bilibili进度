@@ -1,0 +1,144 @@
+// ==UserScript==
+// @name         Bilibili进度
+// @namespace    https://github.com/zrp/Tampermonkey_scripts
+// @version      0.1.1
+// @description  显示合集整体观看进度，方便掌控学习进度，提高学习效率
+// @author       zhangruopeng
+// @include      *://www.bilibili.com/video/BV*
+// @include      *://www.bilibili.com/video/av*?p=*
+// @grant        none
+// @downloadURL none
+// @updateURL none
+// ==/UserScript==
+
+(function () {
+    // 将 "01:00:00" 格式的时间转换为秒数
+    function str_to_seconds(time_str) {
+        const time_nums = time_str.split(":").map(val => Number(val)).reverse();
+        return time_nums[0] + time_nums[1] * 60 + (time_nums[2] ? time_nums[2] * 60 * 60 : 0);
+    }
+
+    // 格式化秒数为 "01:00:00" 的格式
+    function format_seconds(seconds_num) {
+        const seconds = seconds_num % 60;
+        const minutes = Math.floor((seconds_num % 3600) / 60);
+        const hours = Math.floor(seconds_num / 3600);
+        const seconds_str = seconds > 9 ? seconds + "" : `0${seconds}`;
+        const minutes_str = minutes > 9 ? minutes + ":" : `0${minutes}:`;
+        const hours_str = hours === 0 ? '' : hours > 9 ? hours + ":" : `0${hours}:`;
+        return `${hours_str}${minutes_str}${seconds_str}`;
+    }
+
+    // 获取每集的时长并转换为秒
+    function get_episode_durations() {
+        const durations = document.querySelectorAll('.stat-item.duration');
+        return Array.from(durations).map(duration => str_to_seconds(duration.textContent.trim()));
+    }
+
+    // 获取当前播放时间
+    function get_current_playing_time() {
+        const current_time_element = document.querySelector('.bpx-player-ctrl-time-current');
+        if (current_time_element) {
+            const current_time_str = current_time_element.textContent.trim();
+            return str_to_seconds(current_time_str); // 当前播放进度的时间
+        }
+        return 0; // 如果无法找到元素，则返回0
+    }
+
+    // 获取当前集数和总集数
+    function get_current_episode_info() {
+        const amt_element = document.querySelector('.amt');
+        if (amt_element) {
+            const amt_str = amt_element.textContent.trim();
+            const match = amt_str.match(/(\d+)\/(\d+)/); // 正则匹配 "27/31"
+            if (match) {
+                const current_episode = Number(match[1]);
+                const total_episodes = Number(match[2]);
+                return { current_episode, total_episodes };
+            }
+        }
+        return { current_episode: 0, total_episodes: 0 };
+    }
+
+    // 计算当前进度和百分比
+    function update_duration_and_progress() {
+        // 获取每集的时长
+        const episode_durations = get_episode_durations();
+
+        // 获取当前集数和总集数
+        const { current_episode, total_episodes } = get_current_episode_info();
+
+        if (current_episode === 0) {
+            // 如果获取不到当前集数，停止更新
+            return;
+        }
+
+        // 获取当前播放的时间
+        const current_playing_time = get_current_playing_time();
+
+        // 计算前面所有集的时长
+        let accumulated_time = 0;
+        for (let i = 0; i < current_episode - 1; i++) {
+            accumulated_time += episode_durations[i]; // 累加前几集的时长
+        }
+
+        // 计算当前进度：前面所有集的时长 + 当前播放进度
+        let current_progress = accumulated_time + current_playing_time;
+
+        // 计算合集总时长
+        const total_duration = episode_durations.reduce((total, duration) => total + duration, 0);
+
+        // 格式化总时长和当前进度
+        const formatted_total_duration = format_seconds(total_duration);
+        const formatted_current_progress = format_seconds(current_progress);
+
+        // 计算百分比
+        const percentage = ((current_progress / total_duration) * 100).toFixed(2);
+
+        // 查找 bpx-player-control-bottom-left 元素
+        const player_control_bottom_left = document.querySelector('.bpx-player-control-bottom-left');
+        if (!player_control_bottom_left) {
+            console.error("找不到播放器控制左侧的元素！");
+            return;
+        }
+
+        // 查找 class="bpx-player-ctrl-btn bpx-player-ctrl-time" 元素
+        const control_time_button = player_control_bottom_left.querySelector('.bpx-player-ctrl-btn.bpx-player-ctrl-time');
+        if (!control_time_button) {
+            console.error("找不到 'bpx-player-ctrl-btn bpx-player-ctrl-time' 元素！");
+            return;
+        }
+
+        // 查找或创建一个显示进度的元素
+        let progress_element = document.querySelector("#progress_display");
+        if (!progress_element) {
+            progress_element = document.createElement("div");
+            progress_element.id = "progress_display";
+            progress_element.style.display = "inline-block";
+            progress_element.style.padding = "5px";
+            progress_element.style.color = "hsla(0, 0%, 100%, .8)";
+            progress_element.style.fontSize = "14px"; // 修改字体大小为14px
+            progress_element.style.backgroundColor = "transparent"; // 背景透明
+            progress_element.style.textAlign = "center"; // 文本居中
+            progress_element.style.marginLeft = "10px"; // 在进度旁边添加空隙
+            player_control_bottom_left.style.display = "flex"; // 使用 flex 布局
+            player_control_bottom_left.style.alignItems = "center"; // 垂直居中
+            player_control_bottom_left.insertBefore(progress_element, control_time_button.nextSibling);
+        }
+
+        // 更新页面上的显示
+        progress_element.textContent = `${formatted_current_progress}/${formatted_total_duration} ${percentage}%`;
+    }
+
+    // 动态监听页面内容变化以更新总时长、当前进度和百分比
+    const observer = new MutationObserver(update_duration_and_progress);
+
+    // 配置监听参数：监听子节点和子树变化
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    // 当页面加载完成时，更新总时长、当前进度和百分比
+    window.addEventListener("load", update_duration_and_progress);
+
+    // 定期检查并更新总时长、当前进度和百分比
+    setInterval(update_duration_and_progress, 5000);  // 每5秒检查一次
+})();
