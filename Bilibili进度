@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         Bilibili进度
-// @namespace    https://github.com/zrp/Tampermonkey_scripts
+// @namespace    https://github.com/zhangruop/bilibili-/commit/25d07c96ceed54962c515f377b429b8a97edf209
 // @version      0.1.1
 // @description  显示合集整体观看进度，方便掌控学习进度，提高学习效率
 // @author       zhangruopeng
 // @include      *://www.bilibili.com/video/BV*
 // @include      *://www.bilibili.com/video/av*?p=*
 // @grant        none
-// @downloadURL none
-// @updateURL none
+// @downloadURL https://github.com/zhangruop/bilibili-/commit/25d07c96ceed54962c515f377b429b8a97edf209
+// @updateURL https://github.com/zhangruop/bilibili-/commit/25d07c96ceed54962c515f377b429b8a97edf209
 // ==/UserScript==
 
 (function () {
